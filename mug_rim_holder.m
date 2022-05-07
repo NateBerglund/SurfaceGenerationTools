@@ -5,10 +5,11 @@ clc
 num_reps = 12;
 gap_size = 3.6;
 resolution = 0.25;
-clearance = 0.9;
+clearance = 0.8;
 mug_inner_radius = 51/2;
 mug_rim_radius = 75.5/2;
-mug_rim_minor_radius = 1.5;
+mug_rim_minor_radius_h = 1.85;
+mug_rim_minor_radius_v = 1.5;
 cutout_radius = 7.25;
 outer_descent = 10.5;
 outer_radius_increase = 2.5;
@@ -21,25 +22,35 @@ polygon = flipud(polygon); % reverse the order (makes it make more sense visuall
 x_shift = mug_rim_radius - polygon(287,1) - 0.25;
 polygon(:,1) = polygon(:,1) + x_shift;
 
-y_shift = mug_rim_minor_radius - polygon(287,2);
+y_shift = mug_rim_minor_radius_v - polygon(287,2);
 polygon(:,2) = polygon(:,2) + y_shift;
 
-n_divs = ceil((pi*mug_rim_minor_radius)/resolution);
+% Rotate the polygon ever so slightly to move it away from the mug wall
+x_offset_from_rot = -0.6;
+rotation_center = [mug_inner_radius+clearance polygon(17,2)];
+theta = 0.035;
+
+rot_matrix = [cos(theta) -sin(theta); sin(theta) cos(theta)];
+polygon = polygon - repmat(rotation_center, size(polygon,1), 1);
+polygon = polygon * rot_matrix';
+polygon = polygon + repmat(rotation_center, size(polygon,1), 1);
+
+n_divs = ceil((pi*mug_rim_minor_radius_v)/resolution);
 n_divs2 = ceil((pi/2*cutout_radius)/resolution); % larger circle, but we need number of divs now
-theta = linspace(pi,pi/2,n_divs + 1)';
+theta = linspace(0.9*pi,pi/2,n_divs + 1)';
 theta2 = linspace(pi/2,0,n_divs2 + 1)';
 theta = [theta; theta2(2:end)];
 
-polygon = polygon(19:250,:); % Keep only the part of the polygon needed to join with the rim
+polygon = polygon(17:240,:); % Keep only the part of the polygon needed to join with the rim
 polygon(1,1) = mug_inner_radius + clearance;
 
 polygon = [polygon;...
-mug_rim_radius + mug_rim_minor_radius * cos(theta) mug_rim_minor_radius * sin(theta)];
+mug_rim_radius + mug_rim_minor_radius_h * cos(theta) mug_rim_minor_radius_v * sin(theta)];
 
 n_divs = ceil(sqrt(outer_descent^2+outer_radius_increase^2)/resolution);
 y_values = linspace(0,-outer_descent,n_divs + 1)';
-x_values = linspace(mug_rim_radius + mug_rim_minor_radius,...
-                    mug_rim_radius + mug_rim_minor_radius + outer_radius_increase,n_divs + 1)';
+x_values = linspace(mug_rim_radius + mug_rim_minor_radius_h,...
+                    mug_rim_radius + mug_rim_minor_radius_h + outer_radius_increase,n_divs + 1)';
 x_values = x_values(2:end);
 y_values = y_values(2:end);
 
@@ -134,11 +145,11 @@ verticesFan2 = generate_fan(fanSurface, 1, size(polygonAExt,1), size(polygonAExt
   
 verticesRemainingFill = [...
   mug_rim_radius + cutout_radius 0 0; ...
-  mug_rim_radius + mug_rim_minor_radius + outer_radius_increase -outer_descent 0; ...
+  mug_rim_radius + mug_rim_minor_radius_h + outer_radius_increase -outer_descent 0; ...
   mug_rim_radius + cutout_radius -outer_descent 0; ...
   mug_rim_radius + cutout_radius 0 0; ...
-  mug_rim_radius + mug_rim_minor_radius 0 0; ...
-  mug_rim_radius + mug_rim_minor_radius + outer_radius_increase -outer_descent 0; ...
+  mug_rim_radius + mug_rim_minor_radius_h 0 0; ...
+  mug_rim_radius + mug_rim_minor_radius_h + outer_radius_increase -outer_descent 0; ...
   ];
 
 % we must apply a custom rotation angle to each point that is dependent on x
