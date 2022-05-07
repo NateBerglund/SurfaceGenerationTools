@@ -5,13 +5,13 @@ clc
 num_reps = 12;
 gap_size = 3.6;
 resolution = 0.25;
-clearance = 0.25;
+clearance = 0.9;
 mug_inner_radius = 51/2;
 mug_rim_radius = 75.5/2;
 mug_rim_minor_radius = 1.5;
 cutout_radius = 7.25;
 outer_descent = 10.5;
-outer_radius_increase = 0.5;
+outer_radius_increase = 2.5;
 
 polygon = csvread('border_subregion.csv');
 polygon(:,2) = 500-polygon(:,2); % compensate for the original being in image coords
@@ -30,7 +30,7 @@ theta = linspace(pi,pi/2,n_divs + 1)';
 theta2 = linspace(pi/2,0,n_divs2 + 1)';
 theta = [theta; theta2(2:end)];
 
-polygon = polygon(10:250,:); % Keep only the part of the polygon needed to join with the rim
+polygon = polygon(19:250,:); % Keep only the part of the polygon needed to join with the rim
 polygon(1,1) = mug_inner_radius + clearance;
 
 polygon = [polygon;...
