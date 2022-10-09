@@ -7,7 +7,8 @@ clc
 extrusion_height = 3.0;
 
 polygon = csvread('border_polygon.csv');
-polygon(:,2) = 500-polygon(:,2); % compensate for the original being in image coords
+polygon(:,2) = 20-polygon(:,2); % compensate for the original being in image coords
+polygon = flipud(polygon); % reverse the order (makes it make more sense visually)
 
 fid = fopen('extruded_polygon.stl','wt');
 fprintf(fid, 'solid extruded_polygon\n');
