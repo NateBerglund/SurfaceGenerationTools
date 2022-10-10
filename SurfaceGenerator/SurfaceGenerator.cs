@@ -17,24 +17,24 @@ namespace SurfaceGenerator
         /// Generates the vertices of a quad surface, 3 vertices per triangle.
         /// </summary>
         /// <param name="f">Function describing the (x,y,z) position of the surface as a function of two input parameters, t and u.</param>
-        /// <param name="tMin">Minimum value of t</param>
-        /// <param name="tMax">Maximum value of t</param>
+        /// <param name="tStart">Starting value of t</param>
+        /// <param name="tEnd">Ending value of t</param>
         /// <param name="nT">Number of quadrilaterals to generate in the t-direction</param>
-        /// <param name="uMin">Minimum value of u</param>
-        /// <param name="uMax">Maximum value of u</param>
+        /// <param name="uStart">Starting value of u</param>
+        /// <param name="uEnd">Ending value of u</param>
         /// <param name="nU">Number of quadrilaterals to generate in the u-direction</param>
         /// <returns>Matrix of vertex coordinates, which can be used to generate STL data</returns>
         public static Matrix<double> GenerateQuadSurface(
             Func<double[], double[], Matrix<double>> f,
-            double tMin, double tMax, int nT,
-            double uMin, double uMax, int nU)
+            double tStart, double tEnd, int nT,
+            double uStart, double uEnd, int nU)
         {
-            List<double> tParams = Generate.LinearSpaced(nT + 1, tMin, tMax).ToList();
+            List<double> tParams = Generate.LinearSpaced(nT + 1, tStart, tEnd).ToList();
             List<double> tParamsShifted = new List<double>(tParams);
             tParamsShifted.RemoveAt(0);
             tParams.RemoveAt(tParams.Count - 1);
 
-            List<double> uParams = Generate.LinearSpaced(nU + 1, uMin, uMax).ToList();
+            List<double> uParams = Generate.LinearSpaced(nU + 1, uStart, uEnd).ToList();
             List<double> uParamsShifted = new List<double>(uParams);
             uParamsShifted.RemoveAt(0);
             uParams.RemoveAt(uParams.Count - 1);
@@ -52,6 +52,132 @@ namespace SurfaceGenerator
             SetSubMatrix(vertices, 3, 6, nQuads, 0, 1, 3, f(Flatten(tGrid3), Flatten(uGrid3)));
             SetSubMatrix(vertices, 4, 6, nQuads, 0, 1, 3, f(Flatten(tGrid4), Flatten(uGrid4)));
             SetSubMatrix(vertices, 5, 6, nQuads, 0, 1, 3, f(Flatten(tGrid1), Flatten(uGrid1)));
+            return vertices;
+        }
+
+        /// <summary>
+        /// Generates the vertices of a fan surface, 3 vertices per triangle. A fan surface differs from a quad surface
+        /// in that we assume there is a singularity in the function at u = uStart, such that f(t, uStart) is always the
+        /// same point, regarless of what the value of t is.
+        /// </summary>
+        /// <param name="f">Function describing the (x,y,z) position of the surface as a function of two input parameters, t and u.</param>
+        /// <param name="tStart">Starting value of t</param>
+        /// <param name="tEnd">Ending value of t</param>
+        /// <param name="nT">Number of quadrilaterals to generate in the t-direction</param>
+        /// <param name="uStart">Starting value of u</param>
+        /// <param name="uEnd">Ending value of u</param>
+        /// <param name="nU">Number of quadrilaterals to generate in the u-direction</param>
+        /// <returns>Matrix of vertex coordinates, which can be used to generate STL data</returns>
+        public static Matrix<double> GenerateFanSurface(
+            Func<double[], double[], Matrix<double>> f,
+            double tStart, double tEnd, int nT,
+            double uStart, double uEnd, int nU)
+        {
+            double uNewStart = uStart + (uEnd - uStart) / nU;
+            Matrix<double> quadPart = GenerateQuadSurface(
+                f,
+                tStart, tEnd, nT,
+                uNewStart, uEnd, nU - 1);
+
+            Matrix<double> centerMatrix = f(new double[] { tStart }, new double[] { uStart });
+            double[] centerPoint = new double[] { centerMatrix[0, 0], centerMatrix[0, 1], centerMatrix[0, 2] };
+
+            Matrix<double> fanPart = GenerateBasicFan(
+                tValues => f(tValues, Enumerable.Repeat(uNewStart, tValues.Length).ToArray()),
+                tStart, tEnd, nT,
+                centerPoint);
+
+            return Matrix<double>.Build.DenseOfMatrixArray(new Matrix<double>[,] { { fanPart }, { quadPart } });
+        }
+
+        /// <summary>
+        /// Generates the vertices of a "crescent moon" shaped surface, 3 vertices per triangle. A crescent surface differs from a quad surface
+        /// in that we assume there are two singularities in the function, one at u = uStart and one at u = uEnd, such that f(t, uStart) is always the
+        /// same point, regarless of what the value of t is, and such that f(t, uEnd) is always the same point, regarless of what the value of t is.
+        /// </summary>
+        /// <param name="f">Function describing the (x,y,z) position of the surface as a function of two input parameters, t and u.</param>
+        /// <param name="tStart">Starting value of t</param>
+        /// <param name="tEnd">Ending value of t</param>
+        /// <param name="nT">Number of quadrilaterals to generate in the t-direction</param>
+        /// <param name="uStart">Starting value of u</param>
+        /// <param name="uEnd">Ending value of u</param>
+        /// <param name="nU">Number of quadrilaterals to generate in the u-direction</param>
+        /// <returns>Matrix of vertex coordinates, which can be used to generate STL data</returns>
+        public static Matrix<double> GenerateCrescentSurface(
+            Func<double[], double[], Matrix<double>> f,
+            double tStart, double tEnd, int nT,
+            double uStart, double uEnd, int nU)
+        {
+            double uNewStart = uStart + (uEnd - uStart) / nU;
+            double uNewEnd = uEnd - (uEnd - uStart) / nU;
+            Matrix<double> quadPart = GenerateQuadSurface(
+                f,
+                tStart, tEnd, nT,
+                uNewStart, uNewEnd, nU - 2);
+
+            Matrix<double> centerMatrix1 = f(new double[] { tStart }, new double[] { uStart });
+            double[] centerPoint1 = new double[] { centerMatrix1[0, 0], centerMatrix1[0, 1], centerMatrix1[0, 2] };
+            Matrix<double> centerMatrix2 = f(new double[] { tStart }, new double[] { uEnd });
+            double[] centerPoint2 = new double[] { centerMatrix2[0, 0], centerMatrix2[0, 1], centerMatrix2[0, 2] };
+
+            Matrix<double> fanPart1 = GenerateBasicFan(
+                tValues => f(tValues, Enumerable.Repeat(uNewStart, tValues.Length).ToArray()),
+                tStart, tEnd, nT,
+                centerPoint1);
+
+            Matrix<double> fanPart2 = GenerateBasicFan(
+                tValues => f(tValues, Enumerable.Repeat(uNewEnd, tValues.Length).ToArray()),
+                tEnd, tStart, nT,
+                centerPoint2);
+
+            return Matrix<double>.Build.DenseOfMatrixArray(new Matrix<double>[,] { { fanPart1 }, { quadPart }, { fanPart2 } });
+        }
+
+        /// <summary>
+        /// Flips the orientation of all triangles in a surface
+        /// </summary>
+        /// <param name="vertices">Input surface</param>
+        /// <returns>Surface with the orientation of each triangle flipped</returns>
+        public static Matrix<double> OrientationFlip(Matrix<double> vertices)
+        {
+            double[,] array = vertices.ToArray();
+            int nT = array.GetLength(0) / 3;
+            for (int t = 0; t < nT; t++)
+            {
+                // Swap rows 3*t and 3*t+1
+                for (int j = 0; j < 3; j++)
+                {
+                    double temp = array[3 * t, j];
+                    array[3 * t, j] = array[3 * t + 1, j];
+                    array[3 * t + 1, j] = temp;
+                }
+            }
+            return Matrix<double>.Build.DenseOfArray(array);
+        }
+
+        /// <summary>
+        /// Generates the vertices of a simple triangle fan, 3 vertices per triangle. A triangle fan as a single
+        /// center point, and "fans out" to connect to the curve described by the 1-parameter input function f.
+        /// </summary>
+        /// <param name="f">Function describing the (x,y,z) position of the fan boundary as a function of one input parameter t.</param>
+        /// <param name="tStart">Starting value of t</param>
+        /// <param name="tEnd">Ending value of t</param>
+        /// <param name="nT">Number of triangles to generate</param>
+        /// <returns>Matrix of vertex coordinates, which can be used to generate STL data</returns>
+        public static Matrix<double> GenerateBasicFan(
+            Func<double[], Matrix<double>> f,
+            double tStart, double tEnd, int nT,
+            double[] centerPoint)
+        {
+            List<double> tParams = Generate.LinearSpaced(nT + 1, tStart, tEnd).ToList();
+            List<double> tParamsShifted = new List<double>(tParams);
+            tParamsShifted.RemoveAt(0);
+            tParams.RemoveAt(tParams.Count - 1);
+
+            Matrix<double> vertices = Matrix<double>.Build.DenseOfArray(new double[3 * nT, 3]);
+            SetSubMatrix(vertices, 0, 3, nT, 0, 1, 3, Matrix<double>.Build.Dense(nT, 3, (i, j) => centerPoint[j]));
+            SetSubMatrix(vertices, 1, 3, nT, 0, 1, 3, f(tParams.ToArray()));
+            SetSubMatrix(vertices, 2, 3, nT, 0, 1, 3, f(tParamsShifted.ToArray()));
             return vertices;
         }
 
