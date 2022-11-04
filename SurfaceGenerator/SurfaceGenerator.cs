@@ -13,6 +13,8 @@ namespace SurfaceGenerator
     /// </summary>
     public static class SurfaceGenerator
     {
+        #region Parametric Surface Generation
+
         /// <summary>
         /// Generates the vertices of a quad surface, 3 vertices per triangle.
         /// </summary>
@@ -134,28 +136,6 @@ namespace SurfaceGenerator
         }
 
         /// <summary>
-        /// Flips the orientation of all triangles in a surface
-        /// </summary>
-        /// <param name="vertices">Input surface</param>
-        /// <returns>Surface with the orientation of each triangle flipped</returns>
-        public static Matrix<double> OrientationFlip(Matrix<double> vertices)
-        {
-            double[,] array = vertices.ToArray();
-            int nT = array.GetLength(0) / 3;
-            for (int t = 0; t < nT; t++)
-            {
-                // Swap rows 3*t and 3*t+1
-                for (int j = 0; j < 3; j++)
-                {
-                    double temp = array[3 * t, j];
-                    array[3 * t, j] = array[3 * t + 1, j];
-                    array[3 * t + 1, j] = temp;
-                }
-            }
-            return Matrix<double>.Build.DenseOfArray(array);
-        }
-
-        /// <summary>
         /// Generates the vertices of a simple triangle fan, 3 vertices per triangle. A triangle fan as a single
         /// center point, and "fans out" to connect to the curve described by the 1-parameter input function f.
         /// </summary>
@@ -180,6 +160,111 @@ namespace SurfaceGenerator
             SetSubMatrix(vertices, 2, 3, nT, 0, 1, 3, f(tParamsShifted.ToArray()));
             return vertices;
         }
+
+        #endregion Parametric Surface Generation
+
+        #region Polyhedral Surface Generation
+
+        /// <summary>
+        /// Generates the vertices of an STL surface in the shape of a disdyakis dodecahedron
+        /// </summary>
+        /// <param name="radius">Desired radius of the vertices (from the origin)</param>
+        /// <returns>Matrix of vertex coordinates, which can be used to generate STL data</returns>
+        public static Matrix<double> GenerateDisdyakisDodecahedron(double radius)
+        {
+            double a = 4 / (1 + 2 * Math.Sqrt(2));
+            double b = 4 / (2 + 3 * Math.Sqrt(2));
+            double c = 4 / Math.Sqrt(27 + 18 * Math.Sqrt(2));
+
+            double[,] array = new double[144, 3];
+            for (int i = 0; i < 2; i++)
+            {
+                for (int j = 0; j < 2; j++)
+                {
+                    for (int k = 0; k < 2; k++)
+                    {
+                        for (int m = 0; m < 3; m++)
+                        {
+                            for (int n = 0; n < 2; n++)
+                            {
+                                int sx = 2 * i - 1;
+                                int sy = 2 * j - 1;
+                                int sz = 2 * k - 1;
+
+                                int s = ((sx * sy * sz * (2 * n - 1)) + 1) / 2;
+
+                                int t = (24 * i) + (12 * j) + (6 * k) + (2 * m) + n;
+
+                                array[(3 * t) + 0, 0] = sx * c * radius;
+                                array[(3 * t) + 0, 1] = sy * c * radius;
+                                array[(3 * t) + 0, 2] = sz * c * radius;
+
+                                array[(3 * t) + 1 + s, 0] = sx * b * radius;
+                                array[(3 * t) + 1 + s, 1] = sy * b * radius;
+                                array[(3 * t) + 1 + s, 2] = sz * b * radius;
+                                array[(3 * t) + 1 + s, m] = 0;
+
+                                int p = (m + n + 1) % 3;
+                                array[(3 * t) + 2 - s, 0] = sx * a * radius;
+                                array[(3 * t) + 2 - s, 1] = sy * a * radius;
+                                array[(3 * t) + 2 - s, 2] = sz * a * radius;
+                                array[(3 * t) + 2 - s, m] = 0;
+                                array[(3 * t) + 2 - s, p] = 0;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return Matrix<double>.Build.DenseOfArray(array);
+        }
+
+        #endregion Polyhedral Surface Generation
+
+        #region Surface Manipulation
+
+        /// <summary>
+        /// Flips the orientation of all triangles in a surface
+        /// </summary>
+        /// <param name="vertices">Input surface</param>
+        /// <returns>Surface with the orientation of each triangle flipped</returns>
+        public static Matrix<double> OrientationFlip(Matrix<double> vertices)
+        {
+            double[,] array = vertices.ToArray();
+            int nT = array.GetLength(0) / 3;
+            for (int t = 0; t < nT; t++)
+            {
+                // Swap rows 3*t and 3*t+1
+                for (int j = 0; j < 3; j++)
+                {
+                    double temp = array[3 * t, j];
+                    array[3 * t, j] = array[3 * t + 1, j];
+                    array[3 * t + 1, j] = temp;
+                }
+            }
+            return Matrix<double>.Build.DenseOfArray(array);
+        }
+
+        /// <summary>
+        /// Normalizes a row of a matrix to have a certain magnitude as a vector.
+        /// </summary>
+        /// <param name="array">Array containing the data</param>
+        /// <param name="rowIndex">Which row to normalize</param>
+        /// <param name="scale">Scale factor to apply after normalizing</param>
+        public static void NormalizeRow(double[,] array, int rowIndex, double scale)
+        {
+            double sf = scale / Math.Sqrt(
+                (array[rowIndex, 0] * array[rowIndex, 0])
+                + (array[rowIndex, 1] * array[rowIndex, 1])
+                + (array[rowIndex, 2] * array[rowIndex, 2]));
+            array[rowIndex, 0] *= sf;
+            array[rowIndex, 1] *= sf;
+            array[rowIndex, 2] *= sf;
+        }
+
+        #endregion Surface Manipulation
+
+        #region Functions to mimic Matlab
 
         /// <summary>
         /// Implementation of Matlab's ndGrid for 2-dimensional data.
@@ -251,6 +336,8 @@ namespace SurfaceGenerator
                 }
             }
         }
+
+        #endregion Functions to mimic Matlab
 
         /// <summary>
         /// Converts a matrix to a string suitable for writing to a (text) STL file.
