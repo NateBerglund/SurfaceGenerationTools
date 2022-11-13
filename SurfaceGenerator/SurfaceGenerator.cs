@@ -219,6 +219,174 @@ namespace SurfaceGenerator
             return Matrix<double>.Build.DenseOfArray(array);
         }
 
+        /// <summary>
+        /// Generates an annotated disdyakis dodecahedron (will contain the 95 printable
+        /// ASCII characters on it -- eventually)
+        /// </summary>
+        /// <param name="radius">Desired radius of the vertices (from the origin)</param>
+        /// <returns>Matrix of vertex coordinates, which can be used to generate STL data</returns>
+        public static Matrix<double> GenerateAnnotatedDisdyakisDodecahedron(double radius)
+        {
+            double a = 4 / (1 + 2 * Math.Sqrt(2));
+            double b = 4 / (2 + 3 * Math.Sqrt(2));
+            double c = 4 / Math.Sqrt(27 + 18 * Math.Sqrt(2));
+
+            double[] tempPoint = new double[3];
+            double[,] array = new double[144 * 14, 3];
+            for (int i = 0; i < 2; i++)
+            {
+                for (int j = 0; j < 2; j++)
+                {
+                    for (int k = 0; k < 2; k++)
+                    {
+                        for (int m = 0; m < 3; m++)
+                        {
+                            for (int n = 0; n < 2; n++)
+                            {
+                                int sx = 2 * i - 1;
+                                int sy = 2 * j - 1;
+                                int sz = 2 * k - 1;
+
+                                tempPoint[0] = sx * c * radius;
+                                tempPoint[1] = sy * c * radius;
+                                tempPoint[2] = sz * c * radius;
+                                Vector<double> C = Vector<double>.Build.DenseOfArray(tempPoint);
+
+                                tempPoint[0] = sx * b * radius;
+                                tempPoint[1] = sy * b * radius;
+                                tempPoint[2] = sz * b * radius;
+                                tempPoint[m] = 0;
+                                Vector<double> B = Vector<double>.Build.DenseOfArray(tempPoint);
+
+                                int p = (m + n + 1) % 3;
+                                tempPoint[0] = sx * a * radius;
+                                tempPoint[1] = sy * a * radius;
+                                tempPoint[2] = sz * a * radius;
+                                tempPoint[m] = 0;
+                                tempPoint[p] = 0;
+                                Vector<double> A = Vector<double>.Build.DenseOfArray(tempPoint);
+
+                                Vector<double> D = A + 0.547571 * (C - A);
+
+                                double offsetParallel = 1.0;
+                                double offsetPerpendic = 0.25;
+                                double proprotionInset = 0.05;
+                                Vector<double> V1 = (B - D) / (B - D).L2Norm();
+                                Vector<double> V2 = (A - D) - (A - D).DotProduct(V1) * V1;
+                                V2 = V2 / V2.L2Norm();
+
+                                Vector<double> B2 = B - offsetParallel * V1;
+                                Vector<double> D2 = D + offsetParallel * V1;
+
+                                Vector<double> B2A = B2 + offsetPerpendic * V2;
+                                Vector<double> D2A = D2 + offsetPerpendic * V2;
+
+                                Vector<double> B2C = B2 - offsetPerpendic * V2;
+                                Vector<double> D2C = D2 - offsetPerpendic * V2;
+
+                                B2 = (1 - proprotionInset) * B2;
+                                D2 = (1 - proprotionInset) * D2;
+
+                                // 0 or 1 (indicates an orientation flip)
+                                int s = ((sx * sy * sz * (2 * n - 1)) + 1) / 2;
+
+                                int t = (24 * i) + (12 * j) + (6 * k) + (2 * m) + n;
+                                t *= 14;
+
+                                // TODO: this can be thought of as "doing something" to triangle
+                                // CBD, where the same operation is performed on triangle DBA
+                                // further down. TODO: combine these into a helper function
+
+                                SetPoint(array, (3 * t) + 0, C);
+                                SetPoint(array, (3 * t) + 1 + s, B);
+                                SetPoint(array, (3 * t) + 2 - s, B2C);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, C);
+                                SetPoint(array, (3 * t) + 1 + s, B2C);
+                                SetPoint(array, (3 * t) + 2 - s, D2C);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, C);
+                                SetPoint(array, (3 * t) + 1 + s, D2C);
+                                SetPoint(array, (3 * t) + 2 - s, D);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, D);
+                                SetPoint(array, (3 * t) + 1 + s, D2A);
+                                SetPoint(array, (3 * t) + 2 - s, A);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, D2A);
+                                SetPoint(array, (3 * t) + 1 + s, B2A);
+                                SetPoint(array, (3 * t) + 2 - s, A);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, B2A);
+                                SetPoint(array, (3 * t) + 1 + s, B);
+                                SetPoint(array, (3 * t) + 2 - s, A);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, B);
+                                SetPoint(array, (3 * t) + 1 + s, B2A);
+                                SetPoint(array, (3 * t) + 2 - s, B2);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, D);
+                                SetPoint(array, (3 * t) + 1 + s, D2);
+                                SetPoint(array, (3 * t) + 2 - s, D2A);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, D2);
+                                SetPoint(array, (3 * t) + 1 + s, B2A);
+                                SetPoint(array, (3 * t) + 2 - s, D2A);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, D2);
+                                SetPoint(array, (3 * t) + 1 + s, B2);
+                                SetPoint(array, (3 * t) + 2 - s, B2A);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, B);
+                                SetPoint(array, (3 * t) + 1 + s, B2);
+                                SetPoint(array, (3 * t) + 2 - s, B2C);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, D);
+                                SetPoint(array, (3 * t) + 1 + s, D2C);
+                                SetPoint(array, (3 * t) + 2 - s, D2);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, D2);
+                                SetPoint(array, (3 * t) + 1 + s, D2C);
+                                SetPoint(array, (3 * t) + 2 - s, B2C);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, D2);
+                                SetPoint(array, (3 * t) + 1 + s, B2C);
+                                SetPoint(array, (3 * t) + 2 - s, B2);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return Matrix<double>.Build.DenseOfArray(array);
+        }
+
         #endregion Polyhedral Surface Generation
 
         #region Surface Manipulation
@@ -335,6 +503,20 @@ namespace SurfaceGenerator
                     destination[iStart + (iStep * i), jStart + (jStep * j)] = source[i, j];
                 }
             }
+        }
+
+        /// <summary>
+        /// Function specific to setting 3D points within a matrix stored as an array,
+        /// from a vetor source.
+        /// </summary>
+        /// <param name="destination">Destination array</param>
+        /// <param name="index">Index of the point to set</param>
+        /// <param name="source">Vector to set</param>
+        public static void SetPoint(double[,] destination, int index, Vector<double> source)
+        {
+            destination[index, 0] = source[0];
+            destination[index, 1] = source[1];
+            destination[index, 2] = source[2];
         }
 
         #endregion Functions to mimic Matlab

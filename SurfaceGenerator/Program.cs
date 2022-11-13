@@ -17,15 +17,20 @@ namespace SurfaceGenerator
         /// <param name="args">Command line arguments (if any)</param>
         static void Main(string[] args)
         {
-            File.WriteAllText("skeleton_long_piece.stl",
-                SurfaceToSTLData(
-                    GenerateSkeletonLongPiece(),
-                    "skeleton_long_piece"));
+            //File.WriteAllText("skeleton_long_piece.stl",
+            //    SurfaceToSTLData(
+            //        GenerateSkeletonLongPiece(),
+            //        "skeleton_long_piece"));
 
-            File.WriteAllText("skeleton_short_piece.stl",
+            //File.WriteAllText("skeleton_short_piece.stl",
+            //    SurfaceToSTLData(
+            //        GenerateSkeletonShortPiece(),
+            //        "skeleton_short_piece"));
+
+            File.WriteAllText("disdyakis_dodecahedron.stl",
                 SurfaceToSTLData(
-                    GenerateSkeletonShortPiece(),
-                    "skeleton_short_piece"));
+                    GenerateAnnotatedDisdyakisDodecahedron(20.0),
+                    "disdyakis_dodecahedron"));
         }
 
         /// <summary>
