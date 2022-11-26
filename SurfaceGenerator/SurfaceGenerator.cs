@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using MathNet.Numerics;
@@ -224,15 +225,61 @@ namespace SurfaceGenerator
         /// ASCII characters on it -- eventually)
         /// </summary>
         /// <param name="radius">Desired radius of the vertices (from the origin)</param>
+        /// <param name="asciiSTLsFolder">Folder containing pre-generated stl files of ascii characters at the correct size</param>
         /// <returns>Matrix of vertex coordinates, which can be used to generate STL data</returns>
-        public static Matrix<double> GenerateAnnotatedDisdyakisDodecahedron(double radius)
+        public static Matrix<double> GenerateAnnotatedDisdyakisDodecahedron(double radius, string asciiSTLsFolder)
         {
             double a = 4 / (1 + 2 * Math.Sqrt(2));
             double b = 4 / (2 + 3 * Math.Sqrt(2));
             double c = 4 / Math.Sqrt(27 + 18 * Math.Sqrt(2));
 
+            const int triangleCountPerFace = 17;
+            const int originalTriangleCount = 48 * triangleCountPerFace;
+            int extraTriangles = 0;
+
+            double[][,] characterData = new double[96][,];
+            int[] nTriangles = new int[96];
+
+            // Read in the stl files
+            // We assume that these files each fill a rectangle of size 4.3913 mm in width and 4.17089 in height, centered on the origin.
+            for (int ch = 0; ch < 96; ch++)
+            {
+                int aIdx = ch + 32;
+                string asciiFile = Path.Combine(asciiSTLsFolder, "ascii" + aIdx.ToString("D3") + ".stl");
+                if (c != 0 && c != 96 && File.Exists(asciiFile))
+                {
+                    characterData[ch] = ReadASCIISTLData(asciiFile);
+                }
+                else
+                {
+                    // Fall back to a default stl file for the rectangle
+                    characterData[ch] = new double[6, 3];
+                    characterData[ch][0, 0] = -2.19565;
+                    characterData[ch][0, 1] = -2.085445;
+                    characterData[ch][0, 2] = 0;
+                    characterData[ch][1, 0] = 2.19565;
+                    characterData[ch][1, 1] = -2.085445;
+                    characterData[ch][1, 2] = 0;
+                    characterData[ch][2, 0] = 2.19565;
+                    characterData[ch][2, 1] = 2.085445;
+                    characterData[ch][2, 2] = 0;
+                    characterData[ch][3, 0] = -2.19565;
+                    characterData[ch][3, 1] = -2.085445;
+                    characterData[ch][3, 2] = 0;
+                    characterData[ch][4, 0] = 2.19565;
+                    characterData[ch][4, 1] = 2.085445;
+                    characterData[ch][4, 2] = 0;
+                    characterData[ch][5, 0] = -2.19565;
+                    characterData[ch][5, 1] = 2.085445;
+                    characterData[ch][5, 2] = 0;
+                }
+                nTriangles[ch] = characterData[ch].GetLength(0) / 3;
+                extraTriangles += nTriangles[ch];
+            }
+
             double[] tempPoint = new double[3];
-            double[,] array = new double[144 * 14, 3];
+            double[,] array = new double[3 * (originalTriangleCount + extraTriangles), 3];
+            int t;
             for (int i = 0; i < 2; i++)
             {
                 for (int j = 0; j < 2; j++)
@@ -266,10 +313,10 @@ namespace SurfaceGenerator
                                 tempPoint[p] = 0;
                                 Vector<double> A = Vector<double>.Build.DenseOfArray(tempPoint);
 
-                                Vector<double> D = A + 0.547571 * (C - A);
+                                Vector<double> D = A + 0.54757 * (C - A);
 
-                                double offsetParallel = 1.0;
-                                double offsetPerpendic = 0.25;
+                                double offsetParallel = 0.044082 * radius; // defined so that vertex will coincide with corner of square
+                                double offsetPerpendic = 0.25 * offsetParallel;
                                 double proprotionInset = 0.05;
                                 Vector<double> V1 = (B - D) / (B - D).L2Norm();
                                 Vector<double> V2 = (A - D) - (A - D).DotProduct(V1) * V1;
@@ -284,54 +331,39 @@ namespace SurfaceGenerator
                                 Vector<double> B2C = B2 - offsetPerpendic * V2;
                                 Vector<double> D2C = D2 - offsetPerpendic * V2;
 
+                                // Inset B2 and D2 into the interior of the solid
                                 B2 = (1 - proprotionInset) * B2;
                                 D2 = (1 - proprotionInset) * D2;
+
+                                // Initial definition of squares that will contain the text
+                                double sideLen = 0.219565 * radius;
+                                Vector<double> S0_10 = D + offsetParallel * V1;
+                                Vector<double> S0_00 = S0_10 + sideLen * V1;
+                                Vector<double> S0_01 = S0_00 - sideLen * V2;
+                                Vector<double> S0_11 = S0_10 - sideLen * V2;
+                                Vector<double> S1_00 = D;
+                                Vector<double> S1_10 = S1_00 + sideLen * V1;
+                                Vector<double> S1_11 = S1_10 + sideLen * V2;
+                                Vector<double> S1_01 = S1_00 + sideLen * V2;
+
+                                // Offset for cutout
+                                S0_00 = S0_00 - offsetPerpendic * V2;
+                                S0_10 = S0_10 - offsetPerpendic * V2;
+                                S1_00 = S1_00 + offsetPerpendic * V2;
+                                S1_10 = S1_10 + offsetPerpendic * V2;
+
+                                Console.WriteLine("sideLen = " + sideLen.ToString("G17"));
+                                Console.WriteLine("sideLen - offsetPerpendic = " + (sideLen - offsetPerpendic).ToString("G17"));
+
+                                D2A = S1_00; // Adjust to coincide with S1_00 for simpler topology
 
                                 // 0 or 1 (indicates an orientation flip)
                                 int s = ((sx * sy * sz * (2 * n - 1)) + 1) / 2;
 
-                                int t = (24 * i) + (12 * j) + (6 * k) + (2 * m) + n;
-                                t *= 14;
+                                t = (24 * i) + (12 * j) + (6 * k) + (2 * m) + n;
+                                t *= triangleCountPerFace;
 
-                                // TODO: this can be thought of as "doing something" to triangle
-                                // CBD, where the same operation is performed on triangle DBA
-                                // further down. TODO: combine these into a helper function
-
-                                SetPoint(array, (3 * t) + 0, C);
-                                SetPoint(array, (3 * t) + 1 + s, B);
-                                SetPoint(array, (3 * t) + 2 - s, B2C);
-
-                                t += 1;
-
-                                SetPoint(array, (3 * t) + 0, C);
-                                SetPoint(array, (3 * t) + 1 + s, B2C);
-                                SetPoint(array, (3 * t) + 2 - s, D2C);
-
-                                t += 1;
-
-                                SetPoint(array, (3 * t) + 0, C);
-                                SetPoint(array, (3 * t) + 1 + s, D2C);
-                                SetPoint(array, (3 * t) + 2 - s, D);
-
-                                t += 1;
-
-                                SetPoint(array, (3 * t) + 0, D);
-                                SetPoint(array, (3 * t) + 1 + s, D2A);
-                                SetPoint(array, (3 * t) + 2 - s, A);
-
-                                t += 1;
-
-                                SetPoint(array, (3 * t) + 0, D2A);
-                                SetPoint(array, (3 * t) + 1 + s, B2A);
-                                SetPoint(array, (3 * t) + 2 - s, A);
-
-                                t += 1;
-
-                                SetPoint(array, (3 * t) + 0, B2A);
-                                SetPoint(array, (3 * t) + 1 + s, B);
-                                SetPoint(array, (3 * t) + 2 - s, A);
-
-                                t += 1;
+                                // Define the inset/cutout
 
                                 SetPoint(array, (3 * t) + 0, B);
                                 SetPoint(array, (3 * t) + 1 + s, B2A);
@@ -378,6 +410,174 @@ namespace SurfaceGenerator
                                 SetPoint(array, (3 * t) + 0, D2);
                                 SetPoint(array, (3 * t) + 1 + s, B2C);
                                 SetPoint(array, (3 * t) + 2 - s, B2);
+
+                                // Define the "filler" triangles
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, S0_10);
+                                SetPoint(array, (3 * t) + 1 + s, D);
+                                SetPoint(array, (3 * t) + 2 - s, S0_11);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, S0_01);
+                                SetPoint(array, (3 * t) + 1 + s, S0_11);
+                                SetPoint(array, (3 * t) + 2 - s, C);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, B2C);
+                                SetPoint(array, (3 * t) + 1 + s, S0_00);
+                                SetPoint(array, (3 * t) + 2 - s, S0_01);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, B);
+                                SetPoint(array, (3 * t) + 1 + s, B2C);
+                                SetPoint(array, (3 * t) + 2 - s, S0_01);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, A);
+                                SetPoint(array, (3 * t) + 1 + s, D);
+                                SetPoint(array, (3 * t) + 2 - s, S1_00);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, A);
+                                SetPoint(array, (3 * t) + 1 + s, S1_00);
+                                SetPoint(array, (3 * t) + 2 - s, S1_01);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, A);
+                                SetPoint(array, (3 * t) + 1 + s, S1_01);
+                                SetPoint(array, (3 * t) + 2 - s, S1_11);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, S1_11);
+                                SetPoint(array, (3 * t) + 1 + s, S1_10);
+                                SetPoint(array, (3 * t) + 2 - s, B2A);
+
+                                t += 1;
+
+                                SetPoint(array, (3 * t) + 0, S1_11);
+                                SetPoint(array, (3 * t) + 1 + s, B2A);
+                                SetPoint(array, (3 * t) + 2 - s, B);
+
+                            }
+                        }
+                    }
+                }
+            }
+
+            t = originalTriangleCount;
+            for (int i = 0; i < 2; i++)
+            {
+                for (int j = 0; j < 2; j++)
+                {
+                    for (int k = 0; k < 2; k++)
+                    {
+                        for (int m = 0; m < 3; m++)
+                        {
+                            for (int n = 0; n < 2; n++)
+                            {
+                                int sx = 2 * i - 1;
+                                int sy = 2 * j - 1;
+                                int sz = 2 * k - 1;
+
+                                tempPoint[0] = sx * c * radius;
+                                tempPoint[1] = sy * c * radius;
+                                tempPoint[2] = sz * c * radius;
+                                Vector<double> C = Vector<double>.Build.DenseOfArray(tempPoint);
+
+                                tempPoint[0] = sx * b * radius;
+                                tempPoint[1] = sy * b * radius;
+                                tempPoint[2] = sz * b * radius;
+                                tempPoint[m] = 0;
+                                Vector<double> B = Vector<double>.Build.DenseOfArray(tempPoint);
+
+                                int p = (m + n + 1) % 3;
+                                tempPoint[0] = sx * a * radius;
+                                tempPoint[1] = sy * a * radius;
+                                tempPoint[2] = sz * a * radius;
+                                tempPoint[m] = 0;
+                                tempPoint[p] = 0;
+                                Vector<double> A = Vector<double>.Build.DenseOfArray(tempPoint);
+
+                                Vector<double> D = A + 0.54757 * (C - A);
+
+                                double offsetParallel = 0.044082 * radius; // defined so that vertex will coincide with corner of square
+                                double offsetPerpendic = 0.25 * offsetParallel;
+                                double proprotionInset = 0.05;
+                                Vector<double> V1 = (B - D) / (B - D).L2Norm();
+                                Vector<double> V2 = (A - D) - (A - D).DotProduct(V1) * V1;
+                                V2 = V2 / V2.L2Norm();
+
+                                Vector<double> B2 = B - offsetParallel * V1;
+                                Vector<double> D2 = D + offsetParallel * V1;
+
+                                Vector<double> B2A = B2 + offsetPerpendic * V2;
+                                Vector<double> D2A = D2 + offsetPerpendic * V2;
+
+                                Vector<double> B2C = B2 - offsetPerpendic * V2;
+                                Vector<double> D2C = D2 - offsetPerpendic * V2;
+
+                                // Inset B2 and D2 into the interior of the solid
+                                B2 = (1 - proprotionInset) * B2;
+                                D2 = (1 - proprotionInset) * D2;
+
+                                // Initial definition of squares that will contain the text
+                                double sideLen = 0.219565 * radius;
+                                Vector<double> S0_10 = D + offsetParallel * V1;
+                                Vector<double> S0_00 = S0_10 + sideLen * V1;
+                                Vector<double> S0_01 = S0_00 - sideLen * V2;
+                                Vector<double> S0_11 = S0_10 - sideLen * V2;
+                                Vector<double> S1_00 = D;
+                                Vector<double> S1_10 = S1_00 + sideLen * V1;
+                                Vector<double> S1_11 = S1_10 + sideLen * V2;
+                                Vector<double> S1_01 = S1_00 + sideLen * V2;
+
+                                // Offset for cutout
+                                S0_00 = S0_00 - offsetPerpendic * V2;
+                                S0_10 = S0_10 - offsetPerpendic * V2;
+                                S1_00 = S1_00 + offsetPerpendic * V2;
+                                S1_10 = S1_10 + offsetPerpendic * V2;
+
+                                D2A = S1_00; // Adjust to coincide with S1_00 for simpler topology
+
+                                // 0 or 1 (indicates an orientation flip)
+                                int s = ((sx * sy * sz * (2 * n - 1)) + 1) / 2;
+
+                                int characterIndex = 2 * ((24 * i) + (12 * j) + (6 * k) + (2 * m) + n); // 0 to 9
+
+                                Vector<double> basis1 = -V1;
+                                Vector<double> basis2 = -V2;
+                                if (s != 0)
+                                {
+                                    basis1 = -basis1;
+                                }
+                                Vector<double> basis3 = Cross(basis1, basis2);
+                                Vector<double> center = 0.25 * (S0_00 + S0_01 + S0_10 + S0_11);
+                                Matrix<double> rotation = Matrix<double>.Build.DenseOfMatrixArray(new Matrix<double>[,] {
+                                    {
+                                        basis1.ToColumnMatrix(), basis2.ToColumnMatrix(), basis3.ToColumnMatrix()
+                                    } });
+
+                                CopyTrianglesWithTransform(array, ref t, characterData[characterIndex], nTriangles[characterIndex], rotation, center);
+
+                                basis1 = -basis1;
+                                basis2 = -basis2;
+                                rotation = Matrix<double>.Build.DenseOfMatrixArray(new Matrix<double>[,] {
+                                    {
+                                        basis1.ToColumnMatrix(), basis2.ToColumnMatrix(), basis3.ToColumnMatrix()
+                                    } });
+                                center = 0.25 * (S1_00 + S1_01 + S1_10 + S1_11);
+
+                                characterIndex += 1;
+                                CopyTrianglesWithTransform(array, ref t, characterData[characterIndex], nTriangles[characterIndex], rotation, center);
                             }
                         }
                     }
@@ -428,6 +628,48 @@ namespace SurfaceGenerator
             array[rowIndex, 0] *= sf;
             array[rowIndex, 1] *= sf;
             array[rowIndex, 2] *= sf;
+        }
+
+        /// <summary>
+        /// Copies traingles from one array to another, applying an affine transform to them in the process
+        /// </summary>
+        /// <param name="dest">Desination array</param>
+        /// <param name="t">Destination starting triangle number</param>
+        /// <param name="source">Source array</param>
+        /// <param name="nTrianglesToCopy">Number of triangle to copy</param>
+        /// <param name="rotation">Rotation component of the affine transform to apply</param>
+        /// <param name="translation">Translation component of the affine transform to apply</param>
+        public static void CopyTrianglesWithTransform(double[,] dest, ref int t, double[,] source, int nTrianglesToCopy, Matrix<double> rotation, Vector<double> translation)
+        {
+            int nPts = source.GetLength(0);
+
+            Matrix<double> toCopy = Matrix<double>.Build.DenseOfMatrixArray(new Matrix<double>[,] { {
+                Matrix<double>.Build.DenseOfArray(source),
+                Matrix<double>.Build.Dense(nPts, 1, 1.0) } });
+
+            Matrix<double> affineTransform = Matrix<double>.Build.DenseOfMatrixArray(new Matrix<double>[,] { {
+                rotation,
+                translation.ToColumnMatrix() } });
+
+            toCopy = toCopy * affineTransform.Transpose();
+            double[,] toCopyAsArray = toCopy.ToArray();
+
+            for (int copyIdx = 0; copyIdx < nTrianglesToCopy; copyIdx++)
+            {
+                dest[3 * t + 0, 0] = toCopyAsArray[3 * copyIdx + 0, 0];
+                dest[3 * t + 0, 1] = toCopyAsArray[3 * copyIdx + 0, 1];
+                dest[3 * t + 0, 2] = toCopyAsArray[3 * copyIdx + 0, 2];
+
+                dest[3 * t + 1, 0] = toCopyAsArray[3 * copyIdx + 1, 0];
+                dest[3 * t + 1, 1] = toCopyAsArray[3 * copyIdx + 1, 1];
+                dest[3 * t + 1, 2] = toCopyAsArray[3 * copyIdx + 1, 2];
+
+                dest[3 * t + 2, 0] = toCopyAsArray[3 * copyIdx + 2, 0];
+                dest[3 * t + 2, 1] = toCopyAsArray[3 * copyIdx + 2, 1];
+                dest[3 * t + 2, 2] = toCopyAsArray[3 * copyIdx + 2, 2];
+
+                t++;
+            }
         }
 
         #endregion Surface Manipulation
@@ -519,6 +761,27 @@ namespace SurfaceGenerator
             destination[index, 2] = source[2];
         }
 
+        /// <summary>
+        /// Computes the cross product of two 3D vectors
+        /// </summary>
+        /// <param name="left">Left vector</param>
+        /// <param name="right">Right vector</param>
+        /// <returns>Cross product</returns>
+        public static Vector<double> Cross(Vector<double> left, Vector<double> right)
+        {
+            if ((left.Count != 3 || right.Count != 3))
+            {
+                string message = "Vectors must have a length of 3.";
+                throw new Exception(message);
+            }
+            Vector<double> result = Vector<double>.Build.Dense(3);
+            result[0] = left[1] * right[2] - left[2] * right[1];
+            result[1] = -left[0] * right[2] + left[2] * right[0];
+            result[2] = left[0] * right[1] - left[1] * right[0];
+
+            return result;
+        }
+
         #endregion Functions to mimic Matlab
 
         /// <summary>
@@ -544,6 +807,38 @@ namespace SurfaceGenerator
             }
             output.AppendLine("endsolid " + name);
             return output.ToString();
+        }
+
+        /// <summary>
+        /// Reads an ASCII stl file into an array
+        /// </summary>
+        /// <param name="filename">Path to the stl file to read</param>
+        /// <returns>Array containing the stl vertices, each 3 of which define a triangle</returns>
+        public static double[,] ReadASCIISTLData(string filename)
+        {
+            string[] allLinesOfFile = File.ReadLines(filename).ToArray();
+            int nTriangles = (allLinesOfFile.Length - 2) / 7;
+
+            double[,] vertices = new double[3 * nTriangles, 3];
+
+            for (int facet = 0; facet < nTriangles; facet++)
+            {
+                string[] tokens = allLinesOfFile[1 + 7 * facet + 2].Split(new char[0], StringSplitOptions.RemoveEmptyEntries);
+                vertices[3 * facet + 0, 0] = double.Parse(tokens[1]);
+                vertices[3 * facet + 0, 1] = double.Parse(tokens[2]);
+                vertices[3 * facet + 0, 2] = double.Parse(tokens[3]);
+
+                tokens = allLinesOfFile[1 + 7 * facet + 3].Split(new char[0], StringSplitOptions.RemoveEmptyEntries);
+                vertices[3 * facet + 1, 0] = double.Parse(tokens[1]);
+                vertices[3 * facet + 1, 1] = double.Parse(tokens[2]);
+                vertices[3 * facet + 1, 2] = double.Parse(tokens[3]);
+
+                tokens = allLinesOfFile[1 + 7 * facet + 4].Split(new char[0], StringSplitOptions.RemoveEmptyEntries);
+                vertices[3 * facet + 2, 0] = double.Parse(tokens[1]);
+                vertices[3 * facet + 2, 1] = double.Parse(tokens[2]);
+                vertices[3 * facet + 2, 2] = double.Parse(tokens[3]);
+            }
+            return vertices;
         }
     }
 }

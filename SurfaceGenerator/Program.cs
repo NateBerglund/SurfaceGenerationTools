@@ -29,7 +29,7 @@ namespace SurfaceGenerator
 
             File.WriteAllText("disdyakis_dodecahedron.stl",
                 SurfaceToSTLData(
-                    GenerateAnnotatedDisdyakisDodecahedron(20.0),
+                    GenerateAnnotatedDisdyakisDodecahedron(20.0, @"C:\Users\info\Documents\3D_Printing\ascii"),
                     "disdyakis_dodecahedron"));
         }
 
