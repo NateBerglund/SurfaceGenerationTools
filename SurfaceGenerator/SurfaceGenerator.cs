@@ -240,13 +240,53 @@ namespace SurfaceGenerator
             double[][,] characterData = new double[96][,];
             int[] nTriangles = new int[96];
 
+            long utcNowTicks = Math.Abs(DateTime.UtcNow.Ticks);
+            int seed = (int)((utcNowTicks % 4294967296L) - 2147483648L);
+            Random rnd = new Random(seed);
+            int[] permutation = Enumerable.Range(0, 96).ToArray();
+            for (int ch = 0; ch < 95; ch++) // last character is fully determined by the previous choices, so we only loop to one less than the last index
+            {
+                int chSwap = ch + rnd.Next(96 - ch);
+                int tmp = permutation[ch];
+                permutation[ch] = permutation[chSwap];
+                permutation[chSwap] = tmp;
+            }
+            // Find the space character and make sure it is on the same face as the extra space (ASCII 127, which is non-printable)
+            int spaceIdx = -1;
+            int extraIdx = -1;
+            for (int ch = 0; ch < 96; ch++)
+            {
+                if (permutation[ch] == 0)
+                {
+                    spaceIdx = ch;
+                }
+                if (permutation[ch] == 95)
+                {
+                    extraIdx = ch;
+                }
+            }
+            int spaceComplement = (2 * (spaceIdx / 2)) + 1 - (spaceIdx % 2);
+            int tmp2 = permutation[spaceComplement];
+            permutation[spaceComplement] = permutation[extraIdx];
+            permutation[extraIdx] = tmp2;
+
+            Console.WriteLine("utcNowTicks = " + utcNowTicks);
+            Console.WriteLine("seed = " + seed);
+            Console.Write("random permutation (preserving pairing of blanks) = [");
+            Console.Write(permutation[0]);
+            for (int ch = 1; ch < 96; ch++)
+            {
+                Console.Write(", " + permutation[ch]);
+            }
+            Console.WriteLine("]");
+            
             // Read in the stl files
             // We assume that these files each fill a rectangle of size 4.3913 mm in width and 4.17089 in height, centered on the origin.
             for (int ch = 0; ch < 96; ch++)
             {
                 int aIdx = ch + 32;
                 string asciiFile = Path.Combine(asciiSTLsFolder, "ascii" + aIdx.ToString("D3") + ".stl");
-                if (c != 0 && c != 96 && File.Exists(asciiFile))
+                if (ch != 0 && ch != 95)
                 {
                     characterData[ch] = ReadASCIISTLData(asciiFile);
                 }
@@ -351,9 +391,6 @@ namespace SurfaceGenerator
                                 S0_10 = S0_10 - offsetPerpendic * V2;
                                 S1_00 = S1_00 + offsetPerpendic * V2;
                                 S1_10 = S1_10 + offsetPerpendic * V2;
-
-                                Console.WriteLine("sideLen = " + sideLen.ToString("G17"));
-                                Console.WriteLine("sideLen - offsetPerpendic = " + (sideLen - offsetPerpendic).ToString("G17"));
 
                                 D2A = S1_00; // Adjust to coincide with S1_00 for simpler topology
 
@@ -552,6 +589,7 @@ namespace SurfaceGenerator
                                 int s = ((sx * sy * sz * (2 * n - 1)) + 1) / 2;
 
                                 int characterIndex = 2 * ((24 * i) + (12 * j) + (6 * k) + (2 * m) + n); // 0 to 9
+                                int randChar = permutation[characterIndex];
 
                                 Vector<double> basis1 = -V1;
                                 Vector<double> basis2 = -V2;
@@ -566,7 +604,7 @@ namespace SurfaceGenerator
                                         basis1.ToColumnMatrix(), basis2.ToColumnMatrix(), basis3.ToColumnMatrix()
                                     } });
 
-                                CopyTrianglesWithTransform(array, ref t, characterData[characterIndex], nTriangles[characterIndex], rotation, center);
+                                CopyTrianglesWithTransform(array, ref t, characterData[randChar], nTriangles[randChar], rotation, center);
 
                                 basis1 = -basis1;
                                 basis2 = -basis2;
@@ -577,7 +615,8 @@ namespace SurfaceGenerator
                                 center = 0.25 * (S1_00 + S1_01 + S1_10 + S1_11);
 
                                 characterIndex += 1;
-                                CopyTrianglesWithTransform(array, ref t, characterData[characterIndex], nTriangles[characterIndex], rotation, center);
+                                randChar = permutation[characterIndex];
+                                CopyTrianglesWithTransform(array, ref t, characterData[randChar], nTriangles[randChar], rotation, center);
                             }
                         }
                     }
