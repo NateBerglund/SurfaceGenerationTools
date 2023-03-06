@@ -626,6 +626,58 @@ namespace SurfaceGenerator
             return Matrix<double>.Build.DenseOfArray(array);
         }
 
+        /// <summary>
+        /// Generates the vertices of an STL surface in the shape of a radially symmetric tetrahedron
+        /// </summary>
+        /// <param name="baseEdgeLength">Desired length of the edges of the base</param>
+        /// <param name="slantEdgeLength">Desired length of the edges of the slanted slopes</param>
+        /// <returns>Matrix of vertex coordinates, which can be used to generate STL data</returns>
+        public static Matrix<double> GenerateTetrahedron(double baseEdgeLength, double slantEdgeLength)
+        {
+            double a = 1 / (2 * Math.Sqrt(3));
+
+            double[] tempPoint = new double[3];
+            tempPoint[0] = -0.5 * baseEdgeLength;
+            tempPoint[1] = -a * baseEdgeLength;
+            tempPoint[2] = 0;
+            Vector<double> A = Vector<double>.Build.DenseOfArray(tempPoint);
+
+            tempPoint[0] = 0.5 * baseEdgeLength;
+            tempPoint[1] = -a * baseEdgeLength;
+            tempPoint[2] = 0;
+            Vector<double> B = Vector<double>.Build.DenseOfArray(tempPoint);
+
+            tempPoint[0] = 0;
+            tempPoint[1] = 2 * a * baseEdgeLength;
+            tempPoint[2] = 0;
+            Vector<double> C = Vector<double>.Build.DenseOfArray(tempPoint);
+
+            tempPoint[0] = 0;
+            tempPoint[1] = 0;
+            tempPoint[2] = Math.Sqrt(Math.Pow(slantEdgeLength, 2) - Math.Pow(2 * a * baseEdgeLength, 2));
+            Vector<double> D = Vector<double>.Build.DenseOfArray(tempPoint);
+
+            double[,] array = new double[12, 3];
+
+            SetPoint(array, 0, A);
+            SetPoint(array, 1, B);
+            SetPoint(array, 2, C);
+
+            SetPoint(array, 3, A);
+            SetPoint(array, 4, B);
+            SetPoint(array, 5, D);
+
+            SetPoint(array, 6, B);
+            SetPoint(array, 7, C);
+            SetPoint(array, 8, D);
+
+            SetPoint(array, 9, C);
+            SetPoint(array, 10, A);
+            SetPoint(array, 11, D);
+
+            return Matrix<double>.Build.DenseOfArray(array);
+        }
+
         #endregion Polyhedral Surface Generation
 
         #region Surface Manipulation

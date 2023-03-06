@@ -27,10 +27,16 @@ namespace SurfaceGenerator
             //        GenerateSkeletonShortPiece(),
             //        "skeleton_short_piece"));
 
-            File.WriteAllText("disdyakis_dodecahedron.stl",
+            //File.WriteAllText("disdyakis_dodecahedron19.stl",
+            //    SurfaceToSTLData(
+            //        //GenerateDisdyakisDodecahedron(16.0),
+            //        GenerateAnnotatedDisdyakisDodecahedron(20.0, @"C:\Users\info\Documents\3D_Printing\ascii"),
+            //        "disdyakis_dodecahedron"));
+
+            File.WriteAllText("tetrahedron.stl",
                 SurfaceToSTLData(
-                    GenerateAnnotatedDisdyakisDodecahedron(20.0, @"C:\Users\info\Documents\3D_Printing\ascii"),
-                    "disdyakis_dodecahedron"));
+                    GenerateTetrahedron(42, 77),
+                    "tetrahedron"));
         }
 
         /// <summary>
